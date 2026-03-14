@@ -1,62 +1,60 @@
 import java.util.*;
 
-class TokenBucket{
-    int tokens,maxTokens;
-    long lastRefillTime;
-    int refillRate;
-    TokenBucket(int maxTokens,int refillRate){
-        this.tokens=maxTokens;
-        this.maxTokens=maxTokens;
-        this.refillRate=refillRate;
-        this.lastRefillTime=System.currentTimeMillis();
-    }
-    void refill(){
-        long now=System.currentTimeMillis();
-        long elapsed=(now-lastRefillTime)/1000;
-        int newTokens=(int)(elapsed*refillRate);
-        if(newTokens>0){
-            tokens=Math.min(maxTokens,tokens+newTokens);
-            lastRefillTime=now;
-        }
-    }
-    boolean allowRequest(){
-        refill();
-        if(tokens>0){
-            tokens--;
-            return true;
-        }
-        return false;
-    }
+class TrieNode{
+    HashMap<Character,TrieNode> children=new HashMap<>();
+    HashMap<String,Integer> queries=new HashMap<>();
+    boolean end=false;
 }
 
-class RateLimiter{
-    HashMap<String,TokenBucket> clients=new HashMap<>();
-    int maxTokens=1000;
-    int refillRate=1000/3600;
+class AutocompleteSystem{
+    TrieNode root=new TrieNode();
+    HashMap<String,Integer> frequency=new HashMap<>();
 
-    public String checkRateLimit(String clientId){
-        clients.putIfAbsent(clientId,new TokenBucket(maxTokens,refillRate));
-        TokenBucket bucket=clients.get(clientId);
-        if(bucket.allowRequest()){
-            return "Allowed ("+bucket.tokens+" requests remaining)";
+    public void updateFrequency(String query){
+        int f=frequency.getOrDefault(query,0)+1;
+        frequency.put(query,f);
+        TrieNode node=root;
+        for(char c:query.toCharArray()){
+            node.children.putIfAbsent(c,new TrieNode());
+            node=node.children.get(c);
+            node.queries.put(query,f);
         }
-        return "Denied (0 requests remaining)";
+        node.end=true;
     }
 
-    public void getRateLimitStatus(String clientId){
-        TokenBucket bucket=clients.get(clientId);
-        int used=maxTokens-bucket.tokens;
-        System.out.println("{used: "+used+", limit: "+maxTokens+"}");
+    public void search(String prefix){
+        TrieNode node=root;
+        for(char c:prefix.toCharArray()){
+            if(!node.children.containsKey(c)){
+                System.out.println("No suggestions");
+                return;
+            }
+            node=node.children.get(c);
+        }
+        PriorityQueue<Map.Entry<String,Integer>> pq=new PriorityQueue<>((a,b)->b.getValue()-a.getValue());
+        pq.addAll(node.queries.entrySet());
+        int rank=1;
+        while(!pq.isEmpty()&&rank<=10){
+            Map.Entry<String,Integer> e=pq.poll();
+            System.out.println(rank+". \""+e.getKey()+"\" ("+e.getValue()+" searches)");
+            rank++;
+        }
     }
 }
 
 public class Week1{
     public static void main(String[] args){
-        RateLimiter limiter=new RateLimiter();
-        System.out.println("checkRateLimit(\"abc123\") -> "+limiter.checkRateLimit("abc123"));
-        System.out.println("checkRateLimit(\"abc123\") -> "+limiter.checkRateLimit("abc123"));
-        for(int i=0;i<998;i++) limiter.checkRateLimit("abc123");
-        System.out.println("checkRateLimit(\"abc123\") -> "+limiter.checkRateLimit("abc123"));
-        limiter.getRateLimitStatus("abc123");
+        AutocompleteSystem system=new AutocompleteSystem();
+        system.updateFrequency("java tutorial");
+        system.updateFrequency("javascript");
+        system.updateFrequency("java download");
+        system.updateFrequency("java tutorial");
+        system.updateFrequency("java tutorial");
+        System.out.println("search(\"jav\") ->");
+        system.search("jav");
+        system.updateFrequency("21 features");
+        system.updateFrequency("21 features");
+        system.updateFrequency("21 features");
+        System.out.println("\nupdateFrequency(\"21 features\") -> Frequency: "+3);
     }
 }
