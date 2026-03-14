@@ -1,45 +1,62 @@
 import java.util.*;
 
-class AnalyticsSystem{
-    HashMap<String,Integer> pageViews=new HashMap<>();
-    HashMap<String,Set<String>> uniqueVisitors=new HashMap<>();
-    HashMap<String,Integer> trafficSources=new HashMap<>();
+class TokenBucket{
+    int tokens,maxTokens;
+    long lastRefillTime;
+    int refillRate;
+    TokenBucket(int maxTokens,int refillRate){
+        this.tokens=maxTokens;
+        this.maxTokens=maxTokens;
+        this.refillRate=refillRate;
+        this.lastRefillTime=System.currentTimeMillis();
+    }
+    void refill(){
+        long now=System.currentTimeMillis();
+        long elapsed=(now-lastRefillTime)/1000;
+        int newTokens=(int)(elapsed*refillRate);
+        if(newTokens>0){
+            tokens=Math.min(maxTokens,tokens+newTokens);
+            lastRefillTime=now;
+        }
+    }
+    boolean allowRequest(){
+        refill();
+        if(tokens>0){
+            tokens--;
+            return true;
+        }
+        return false;
+    }
+}
 
-    public void processEvent(String url,String userId,String source){
-        pageViews.put(url,pageViews.getOrDefault(url,0)+1);
-        uniqueVisitors.putIfAbsent(url,new HashSet<>());
-        uniqueVisitors.get(url).add(userId);
-        trafficSources.put(source,trafficSources.getOrDefault(source,0)+1);
+class RateLimiter{
+    HashMap<String,TokenBucket> clients=new HashMap<>();
+    int maxTokens=1000;
+    int refillRate=1000/3600;
+
+    public String checkRateLimit(String clientId){
+        clients.putIfAbsent(clientId,new TokenBucket(maxTokens,refillRate));
+        TokenBucket bucket=clients.get(clientId);
+        if(bucket.allowRequest()){
+            return "Allowed ("+bucket.tokens+" requests remaining)";
+        }
+        return "Denied (0 requests remaining)";
     }
 
-    public void getDashboard(){
-        PriorityQueue<Map.Entry<String,Integer>> pq=new PriorityQueue<>((a,b)->b.getValue()-a.getValue());
-        pq.addAll(pageViews.entrySet());
-        System.out.println("Top Pages:");
-        int rank=1;
-        while(!pq.isEmpty()&&rank<=10){
-            Map.Entry<String,Integer> e=pq.poll();
-            String url=e.getKey();
-            int views=e.getValue();
-            int unique=uniqueVisitors.get(url).size();
-            System.out.println(rank+". "+url+" - "+views+" views ("+unique+" unique)");
-            rank++;
-        }
-        System.out.println("\nTraffic Sources:");
-        for(Map.Entry<String,Integer> e:trafficSources.entrySet()){
-            System.out.println(e.getKey()+" : "+e.getValue());
-        }
+    public void getRateLimitStatus(String clientId){
+        TokenBucket bucket=clients.get(clientId);
+        int used=maxTokens-bucket.tokens;
+        System.out.println("{used: "+used+", limit: "+maxTokens+"}");
     }
 }
 
 public class Week1{
     public static void main(String[] args){
-        AnalyticsSystem system=new AnalyticsSystem();
-        system.processEvent("/article/breaking-news","user_123","google");
-        system.processEvent("/article/breaking-news","user_456","facebook");
-        system.processEvent("/sports/championship","user_123","direct");
-        system.processEvent("/sports/championship","user_789","google");
-        system.processEvent("/article/breaking-news","user_123","google");
-        system.getDashboard();
+        RateLimiter limiter=new RateLimiter();
+        System.out.println("checkRateLimit(\"abc123\") -> "+limiter.checkRateLimit("abc123"));
+        System.out.println("checkRateLimit(\"abc123\") -> "+limiter.checkRateLimit("abc123"));
+        for(int i=0;i<998;i++) limiter.checkRateLimit("abc123");
+        System.out.println("checkRateLimit(\"abc123\") -> "+limiter.checkRateLimit("abc123"));
+        limiter.getRateLimitStatus("abc123");
     }
 }
