@@ -1,68 +1,36 @@
 import java.util.*;
 
-class UsernameSystem {
+class FlashSaleInventory {
 
-    private HashMap<String, Integer> users;
-    private HashMap<String, Integer> attemptFrequency;
-    private int nextUserId;
+    private HashMap<String, Integer> stock;
+    private HashMap<String, Queue<Integer>> waitingList;
 
-    public UsernameSystem() {
-        users = new HashMap<>();
-        attemptFrequency = new HashMap<>();
-        nextUserId = 1;
+    public FlashSaleInventory() {
+        stock = new HashMap<>();
+        waitingList = new HashMap<>();
     }
 
-    public void register(String username) {
-        if (!users.containsKey(username)) {
-            users.put(username, nextUserId++);
-            System.out.println("User registered: " + username);
-        } else {
-            System.out.println("Username already exists.");
-        }
+    public void addProduct(String productId, int quantity) {
+        stock.put(productId, quantity);
+        waitingList.put(productId, new LinkedList<>());
     }
 
-    public boolean checkAvailability(String username) {
-        attemptFrequency.put(username,
-                attemptFrequency.getOrDefault(username, 0) + 1);
-        return !users.containsKey(username);
+    public int checkStock(String productId) {
+        return stock.getOrDefault(productId, 0);
     }
 
-    public List<String> suggestAlternatives(String username) {
+    public synchronized String purchaseItem(String productId, int userId) {
 
-        List<String> suggestions = new ArrayList<>();
+        int currentStock = stock.getOrDefault(productId, 0);
 
-        for (int i = 1; i <= 5; i++) {
-            String suggestion = username + i;
-            if (!users.containsKey(suggestion))
-                suggestions.add(suggestion);
+        if (currentStock > 0) {
+            stock.put(productId, currentStock - 1);
+            return "Success, " + (currentStock - 1) + " units remaining";
         }
 
-        if (username.contains("_")) {
-            String alt = username.replace("_", ".");
-            if (!users.containsKey(alt))
-                suggestions.add(alt);
-        }
-
-        String year = username + "2025";
-        if (!users.containsKey(year))
-            suggestions.add(year);
-
-        return suggestions;
-    }
-
-    public String getMostAttempted() {
-
-        String maxUser = null;
-        int maxCount = 0;
-
-        for (Map.Entry<String, Integer> entry : attemptFrequency.entrySet()) {
-            if (entry.getValue() > maxCount) {
-                maxCount = entry.getValue();
-                maxUser = entry.getKey();
-            }
-        }
-
-        return maxUser + " (" + maxCount + " attempts)";
+        Queue<Integer> queue = waitingList.get(productId);
+        queue.add(userId);
+        return "Added to waiting list, position #" + queue.size();
     }
 }
 
@@ -70,33 +38,24 @@ public class Week1 {
 
     public static void main(String[] args) {
 
-        UsernameSystem system = new UsernameSystem();
+        FlashSaleInventory system = new FlashSaleInventory();
 
-        system.register("john_doe");
-        system.register("admin");
-        system.register("alex");
+        system.addProduct("IPHONE15_256GB", 100);
 
-        System.out.println();
+        System.out.println("checkStock(\"IPHONE15_256GB\") -> "
+                + system.checkStock("IPHONE15_256GB") + " units available");
 
-        System.out.println("checkAvailability(\"john_doe\") -> "
-                + system.checkAvailability("john_doe"));
+        System.out.println("purchaseItem(\"IPHONE15_256GB\", userId=12345) -> "
+                + system.purchaseItem("IPHONE15_256GB", 12345));
 
-        System.out.println("checkAvailability(\"jane_smith\") -> "
-                + system.checkAvailability("jane_smith"));
+        System.out.println("purchaseItem(\"IPHONE15_256GB\", userId=67890) -> "
+                + system.purchaseItem("IPHONE15_256GB", 67890));
 
-        System.out.println();
+        for(int i=0;i<98;i++){
+            system.purchaseItem("IPHONE15_256GB", i);
+        }
 
-        System.out.println("suggestAlternatives(\"john_doe\") -> "
-                + system.suggestAlternatives("john_doe"));
-
-        System.out.println();
-
-        system.checkAvailability("admin");
-        system.checkAvailability("admin");
-        system.checkAvailability("admin");
-        system.checkAvailability("john_doe");
-
-        System.out.println("getMostAttempted() -> "
-                + system.getMostAttempted());
+        System.out.println("purchaseItem(\"IPHONE15_256GB\", userId=99999) -> "
+                + system.purchaseItem("IPHONE15_256GB", 99999));
     }
 }
