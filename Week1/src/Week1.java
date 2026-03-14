@@ -1,73 +1,83 @@
 import java.util.*;
 
-class Transaction{
-    int id,amount;String merchant,account,time;
-    Transaction(int id,int amount,String merchant,String account,String time){
-        this.id=id;this.amount=amount;this.merchant=merchant;this.account=account;this.time=time;
-    }
+class Video{
+    String id,data;
+    Video(String id,String data){this.id=id;this.data=data;}
 }
 
-class TransactionAnalyzer{
-    List<Transaction> list=new ArrayList<>();
+class MultiLevelCache{
+    LinkedHashMap<String,Video> L1=new LinkedHashMap<>(16,0.75f,true);
+    HashMap<String,Video> L2=new HashMap<>();
+    HashMap<String,Video> L3=new HashMap<>();
+    HashMap<String,Integer> access=new HashMap<>();
+    int l1Hits=0,l2Hits=0,l3Hits=0;
 
-    public void add(Transaction t){list.add(t);}
-
-    public void findTwoSum(int target){
-        HashMap<Integer,Transaction> map=new HashMap<>();
-        for(Transaction t:list){
-            int c=target-t.amount;
-            if(map.containsKey(c)){
-                System.out.println("TwoSum -> ["+map.get(c).id+", "+t.id+"]");
-                return;
-            }
-            map.put(t.amount,t);
+    public Video getVideo(String id){
+        if(L1.containsKey(id)){
+            l1Hits++;
+            System.out.println("L1 Cache HIT (0.5ms)");
+            return L1.get(id);
         }
-        System.out.println("No pair found");
+        if(L2.containsKey(id)){
+            l2Hits++;
+            System.out.println("L1 Cache MISS");
+            System.out.println("L2 Cache HIT (5ms)");
+            Video v=L2.get(id);
+            promoteToL1(id,v);
+            return v;
+        }
+        if(L3.containsKey(id)){
+            l3Hits++;
+            System.out.println("L1 Cache MISS");
+            System.out.println("L2 Cache MISS");
+            System.out.println("L3 Database HIT (150ms)");
+            Video v=L3.get(id);
+            L2.put(id,v);
+            access.put(id,1);
+            System.out.println("Added to L2 (access count: 1)");
+            return v;
+        }
+        return null;
     }
 
-    public void detectDuplicates(){
-        HashMap<String,List<Transaction>> map=new HashMap<>();
-        for(Transaction t:list){
-            String key=t.amount+"-"+t.merchant;
-            map.putIfAbsent(key,new ArrayList<>());
-            map.get(key).add(t);
+    void promoteToL1(String id,Video v){
+        L1.put(id,v);
+        if(L1.size()>10000){
+            Iterator<String> it=L1.keySet().iterator();
+            it.next();it.remove();
         }
-        for(Map.Entry<String,List<Transaction>> e:map.entrySet()){
-            if(e.getValue().size()>1){
-                List<String> acc=new ArrayList<>();
-                for(Transaction t:e.getValue())acc.add(t.account);
-                String[] p=e.getKey().split("-");
-                System.out.println("{amount:"+p[0]+", merchant:\""+p[1]+"\", accounts:"+acc+"}");
-            }
-        }
+        System.out.println("Promoted to L1");
     }
 
-    public void findKSum(int k,int target){
-        List<Integer> ids=new ArrayList<>();
-        dfs(0,k,target,ids);
-    }
+    public void addToDatabase(Video v){L3.put(v.id,v);}
 
-    void dfs(int i,int k,int target,List<Integer> ids){
-        if(k==0&&target==0){
-            System.out.println("KSum -> "+ids);return;
-        }
-        if(i>=list.size()||k<0||target<0)return;
-        ids.add(list.get(i).id);
-        dfs(i+1,k-1,target-list.get(i).amount,ids);
-        ids.remove(ids.size()-1);
-        dfs(i+1,k,target,ids);
+    public void getStatistics(){
+        int total=l1Hits+l2Hits+l3Hits;
+        double l1=(l1Hits*100.0)/(total==0?1:total);
+        double l2=(l2Hits*100.0)/(total==0?1:total);
+        double l3=(l3Hits*100.0)/(total==0?1:total);
+        System.out.println("L1 Hit Rate "+String.format("%.1f",l1)+"%");
+        System.out.println("L2 Hit Rate "+String.format("%.1f",l2)+"%");
+        System.out.println("L3 Hit Rate "+String.format("%.1f",l3)+"%");
+        System.out.println("Overall Hit Rate "+String.format("%.1f",(l1Hits+l2Hits+l3Hits)*100.0/(total==0?1:total))+"%");
     }
 }
 
 public class Week1{
     public static void main(String[] args){
-        TransactionAnalyzer a=new TransactionAnalyzer();
-        a.add(new Transaction(1,500,"Store A","acc1","10:00"));
-        a.add(new Transaction(2,300,"Store B","acc2","10:15"));
-        a.add(new Transaction(3,200,"Store C","acc3","10:30"));
-        a.add(new Transaction(4,500,"Store A","acc2","10:45"));
-        a.findTwoSum(500);
-        a.detectDuplicates();
-        a.findKSum(3,1000);
+        MultiLevelCache c=new MultiLevelCache();
+        c.addToDatabase(new Video("video_123","dataA"));
+        c.addToDatabase(new Video("video_999","dataB"));
+
+        System.out.println("getVideo(\"video_123\")");
+        c.getVideo("video_123");
+        System.out.println("\ngetVideo(\"video_123\") second request");
+        c.getVideo("video_123");
+
+        System.out.println("\ngetVideo(\"video_999\")");
+        c.getVideo("video_999");
+
+        System.out.println("\nStatistics:");
+        c.getStatistics();
     }
 }
