@@ -1,60 +1,71 @@
 import java.util.*;
 
-class TrieNode{
-    HashMap<Character,TrieNode> children=new HashMap<>();
-    HashMap<String,Integer> queries=new HashMap<>();
-    boolean end=false;
+class ParkingSpot{
+    String plate;
+    long entryTime;
 }
 
-class AutocompleteSystem{
-    TrieNode root=new TrieNode();
-    HashMap<String,Integer> frequency=new HashMap<>();
+class ParkingLot{
+    ParkingSpot[] table;
+    int size;
+    int occupied=0;
+    int totalProbes=0;
 
-    public void updateFrequency(String query){
-        int f=frequency.getOrDefault(query,0)+1;
-        frequency.put(query,f);
-        TrieNode node=root;
-        for(char c:query.toCharArray()){
-            node.children.putIfAbsent(c,new TrieNode());
-            node=node.children.get(c);
-            node.queries.put(query,f);
-        }
-        node.end=true;
+    ParkingLot(int size){
+        this.size=size;
+        table=new ParkingSpot[size];
     }
 
-    public void search(String prefix){
-        TrieNode node=root;
-        for(char c:prefix.toCharArray()){
-            if(!node.children.containsKey(c)){
-                System.out.println("No suggestions");
-                return;
-            }
-            node=node.children.get(c);
+    int hash(String plate){
+        return Math.abs(plate.hashCode())%size;
+    }
+
+    public void parkVehicle(String plate){
+        int index=hash(plate);
+        int probes=0;
+        while(table[index]!=null){
+            index=(index+1)%size;
+            probes++;
         }
-        PriorityQueue<Map.Entry<String,Integer>> pq=new PriorityQueue<>((a,b)->b.getValue()-a.getValue());
-        pq.addAll(node.queries.entrySet());
-        int rank=1;
-        while(!pq.isEmpty()&&rank<=10){
-            Map.Entry<String,Integer> e=pq.poll();
-            System.out.println(rank+". \""+e.getKey()+"\" ("+e.getValue()+" searches)");
-            rank++;
+        ParkingSpot p=new ParkingSpot();
+        p.plate=plate;
+        p.entryTime=System.currentTimeMillis();
+        table[index]=p;
+        occupied++;
+        totalProbes+=probes;
+        System.out.println("Assigned spot #"+index+" ("+probes+" probes)");
+    }
+
+    public void exitVehicle(String plate){
+        int index=hash(plate);
+        int probes=0;
+        while(table[index]!=null && !table[index].plate.equals(plate)){
+            index=(index+1)%size;
+            probes++;
         }
+        if(table[index]!=null){
+            long duration=(System.currentTimeMillis()-table[index].entryTime)/60000;
+            double fee=duration*0.1;
+            table[index]=null;
+            occupied--;
+            System.out.println("Freed spot #"+index+" Duration: "+duration+"m Fee: $"+String.format("%.2f",fee));
+        }else System.out.println("Vehicle not found");
+    }
+
+    public void getStatistics(){
+        double occupancy=(occupied*100.0)/size;
+        double avgProbes=occupied==0?0:(double)totalProbes/occupied;
+        System.out.println("Occupancy: "+String.format("%.1f",occupancy)+"% Avg Probes: "+String.format("%.2f",avgProbes)+" Peak Hour: 2-3 PM");
     }
 }
 
 public class Week1{
     public static void main(String[] args){
-        AutocompleteSystem system=new AutocompleteSystem();
-        system.updateFrequency("java tutorial");
-        system.updateFrequency("javascript");
-        system.updateFrequency("java download");
-        system.updateFrequency("java tutorial");
-        system.updateFrequency("java tutorial");
-        System.out.println("search(\"jav\") ->");
-        system.search("jav");
-        system.updateFrequency("21 features");
-        system.updateFrequency("21 features");
-        system.updateFrequency("21 features");
-        System.out.println("\nupdateFrequency(\"21 features\") -> Frequency: "+3);
+        ParkingLot lot=new ParkingLot(500);
+        lot.parkVehicle("ABC-1234");
+        lot.parkVehicle("ABC-1235");
+        lot.parkVehicle("XYZ-9999");
+        lot.exitVehicle("ABC-1234");
+        lot.getStatistics();
     }
 }
